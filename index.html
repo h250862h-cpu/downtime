@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Machine Downtime Log</title>
+<meta name="theme-color" content="#1f5fbf"><meta name="apple-mobile-web-app-capable" content="yes">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mu:#667085;--bd:#d9dde3;--pri:#1f5fbf;--ok:#1a7f4b;--okb:#dff5e8;--bad:#b42318;--badb:#fde4e1;--warn:#9a6700;--warnb:#fff1cc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1d222a;--tx:#e8eaed;--mu:#9aa3b0;--bd:#323944;--pri:#6aa2ff;--ok:#5fd394;--okb:#16372a;--bad:#ff8a7d;--badb:#44201c;--warn:#f0c04a;--warnb:#3d3216}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1d222a;--tx:#e8eaed;--mu:#9aa3b0;--bd:#323944;--pri:#6aa2ff;--ok:#5fd394;--okb:#16372a;--bad:#ff8a7d;--badb:#44201c;--warn:#f0c04a;--warnb:#3d3216}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:12px}
+h1{font-size:20px;margin:0 0 8px}h2{font-size:16px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button,.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer}
+.tabs button.on,.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.m{border:1px solid var(--bd);border-radius:10px;padding:10px;background:var(--card)}
+.m b{display:block}.m small{color:var(--mu);display:block;min-height:32px}
+.m.run{border-left:5px solid var(--ok)}.m.off{border-left:5px solid var(--bad)}
+.chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600}
+.c-run{background:var(--okb);color:var(--ok)}.c-off{background:var(--badb);color:var(--bad)}.c-w{background:var(--warnb);color:var(--warn)}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mu);gap:3px}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:8px;width:100%}
+.wide{grid-column:1/-1}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}th{color:var(--mu);font-weight:600}
+td.n,th.n{text-align:right}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:10px}.row label{min-width:140px}
+.msg{color:var(--mu);font-size:13px;margin-top:6px}.hide{display:none}
+</style></head><body>
+<div id="login" class="card" style="max-width:380px;margin:40px auto"><h1>Machine Downtime Log</h1><form id="lf"><label class="wide">Username<input id="lu" autocomplete="username" required></label><label class="wide">PIN / password<input id="lp" type="password" autocomplete="current-password" required></label><div class="wide"><button class="btn p">Log in</button></div><div class="msg wide" id="lm"></div></form></div>
+<div id="app" class="hide">
+<h1>Machine Downtime Log</h1>
+<div class="card" style="padding:8px 12px"><b id="who"></b> <span class="chip c-w" id="cst">Connecting...</span> <span class="msg" id="syncmsg"></span> <button class="btn" id="lo">Log out</button></div>
+<div class="tabs" id="tabs"></div>
+
+<section id="t-status">
+ <div class="card"><div class="row"><b id="sumline"></b></div><div class="grid" id="board"></div></div>
+</section>
+
+<section id="t-log" class="hide">
+ <div class="card"><h2>Log a stoppage / breakdown</h2>
+  <form id="f">
+   <label>Machine<select id="fm" required></select></label>
+   <label>Type<select id="fc"><option>Breakdown</option><option>Changeover (job card)</option><option>Planned maintenance</option><option>No raw material</option><option>No power / utilities</option><option>No operator / other</option></select></label>
+   <label>Machine stopped (date and time)<input type="datetime-local" id="fs" required></label>
+   <label>Machine running again (leave blank if still OFF)<input type="datetime-local" id="fe"></label>
+   <label>Job card no.<input id="fj" placeholder="e.g. JC-1042"></label>
+   <label>Job card plan<select id="fp"><option>Not applicable</option><option>In progress</option><option>Finished</option></select></label>
+   <label>Person reporting<select id="frp" required><option value="">Select name</option><option>ERIC NYAMAPANDA</option><option>INNOCENT MAVIYANI</option><option>TRUST GWEME</option><option>SIMBARASHE CHAUNOITA</option></select></label>
+   <label class="wide">Reason for downtime / breakdown<textarea id="fr" rows="2" required placeholder="e.g. heater band failed, die change to 50mm"></textarea></label>
+   <div class="wide"><button class="btn p" type="submit">Save entry</button> <span class="msg" id="fmsg"></span></div>
+  </form></div>
+ <div class="card"><h2>Entries</h2><div class="scroll"><table id="logt"></table></div></div>
+</section>
+
+<section id="t-daily" class="hide">
+ <div class="card"><div class="row"><label>Date<input type="date" id="dd"></label></div>
+ <div class="scroll"><table id="dt"></table></div>
+ <div class="msg">Basis: 24 hrs per day (today counts up to the current time). Running hrs = day hrs minus down hrs.</div></div>
+</section>
+
+<section id="t-rep" class="hide">
+ <div class="card"><h2>Excel report</h2>
+  <div class="row"><label>From<input type="date" id="rf"></label><label>To<input type="date" id="rt"></label>
+   <button class="btn" data-q="0">Today</button><button class="btn" data-q="7">Last 7 days</button><button class="btn" data-q="m">This month</button><button class="btn" data-q="pm">Last month</button></div>
+  <div class="row"><button class="btn p" id="gen">Generate Excel report</button></div>
+  <div class="msg" id="rmsg">Workbook sheets: Summary (per machine), Daily, Entries. Hours are summarised for the selected period.</div></div>
+ <div class="card"><h2>Preview</h2><div class="scroll"><table id="rp"></table></div></div>
+</section>
+<section id="t-data" class="hide">
+ <div class="card"><h2>Users</h2><div class="row"><label>Full name<input id="an"></label><label>Username<input id="aun"></label><label>PIN (6+ characters)<input id="ap" type="password"></label><label>Role<select id="ar"><option value="worker">Worker</option><option value="admin">Admin</option></select></label><button class="btn p" id="au">Add user</button></div><div class="msg" id="amsg">Workers log in with their username and PIN. Disable a person to block them.</div><div class="scroll"><table id="ut"></table></div></div>
+ <div class="card"><h2>Add a machine</h2><div class="row"><label>Machine name<input id="nm" placeholder="e.g. Blue Crusher"></label><button class="btn p" id="addm">Add machine</button></div><div class="msg" id="nmsg"></div></div>
+ <div class="card"><h2>Remove a machine</h2><div class="row"><label>Machine<select id="rmsel"></select></label><button class="btn" id="rmb">Remove machine</button></div><div class="msg" id="rmmsg">Removed machines disappear from the status board, forms, daily hours and reports. Their past entries are kept, and you can restore a machine at any time.</div>
+ <h2 style="margin-top:12px">Removed machines</h2><div class="row" id="rmlist"></div></div>
+ <div class="card"><h2>Backup and restore</h2><div class="row"><button class="btn" id="bk">Save backup file</button><label>Restore from backup file<input type="file" id="rs" accept=".json,application/json"></label></div><div class="msg" id="bmsg">Entries are saved automatically on this device. Save a backup file regularly, and restore it on another phone or PC to carry the same log over.</div></div>
+</section>
+</div>
+<script type="module">
+import {initializeApp,getApps} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,createUserWithEmailAndPassword} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,doc,setDoc,getDoc,updateDoc,collection,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const cfg={apiKey:"AIzaSyDXbVQIK-Cmb6zDV8o3X4IaEJhf1mZRGBQ",authDomain:"downtime-log-d484f.firebaseapp.com",projectId:"downtime-log-d484f",storageBucket:"downtime-log-d484f.firebasestorage.app",messagingSenderId:"405935525098",appId:"1:405935525098:web:756898b8f546367182db93"};
+const ADM="admin@downtime.local",app=initializeApp(cfg),auth=getAuth(app),db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+const q=s=>document.querySelector(s),em=u=>u.trim().toLowerCase().replace(/[^a-z0-9._-]/g,"")+"@downtime.local";let subs=[],busy=false;
+function ping(w){if(window.UID)setDoc(doc(db,"activity",UID),{name:NAME,last:new Date().toISOString(),what:w}).catch(()=>{})}
+q("#lf").onsubmit=async e=>{e.preventDefault();q("#lm").textContent="Logging in...";try{await signInWithEmailAndPassword(auth,em(q("#lu").value),q("#lp").value);q("#lp").value=""}catch(x){q("#lm").textContent=x.code==="auth/network-request-failed"?"No internet connection.":"Wrong username or PIN."}};
+q("#lo").onclick=()=>signOut(auth);
+function fillRep(){const n=ADMIN?USERS.filter(u=>u.active!==false).map(u=>u.name):[NAME];q("#frp").innerHTML=n.map(x=>"<option>"+esc(x)+"</option>").join("");q("#frp").value=NAME}
+window.sync=async()=>{if(!UID||busy)return;busy=true;const out=evAll.filter(e=>!e.sy||e.sy<e.upd);
+ out.forEach(e=>{const o={};for(const k in e)if(k!=="sy")o[k]=e[k];if(!o.by)o.by=UID;setDoc(doc(db,"events",String(e.id)),o).catch(x=>{q("#syncmsg").textContent="Not saved: "+(x.code||x.message);e.sy=0});e.sy=e.upd});
+ if(out.length){try{localStorage.setItem("dtlog",JSON.stringify(evAll))}catch(x){}ping("saved an entry")}busy=false};
+window.cfgPush=()=>{const j=JSON.stringify({custom:customM(),gone:gone()});if(j===window.lastCfg)return;window.lastCfg=j;setDoc(doc(db,"config","machines"),JSON.parse(j)).catch(x=>{q("#syncmsg").textContent="Machine list not saved: "+x.code})};
+q("#au").onclick=async()=>{const n=q("#an").value.trim(),un=q("#aun").value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,""),pin=q("#ap").value,m=q("#amsg");
+ if(!n||!un||pin.length<6){m.textContent="Enter a name, a username and a PIN of 6 or more characters.";return}
+ try{const s2=getApps().find(a=>a.name==="sec")||initializeApp(cfg,"sec"),a2=getAuth(s2),c=await createUserWithEmailAndPassword(a2,em(un),pin);
+  await setDoc(doc(db,"users",c.user.uid),{name:n,username:un,role:q("#ar").value,active:true});await signOut(a2);m.textContent=n+" added. Username: "+un;q("#an").value=q("#aun").value=q("#ap").value=""}
+ catch(x){m.textContent=x.code==="auth/email-already-in-use"?"That username is taken.":"Could not add user: "+(x.code||x.message)}};
+q("#ut").onclick=e=>{const id=e.target.dataset.tog;if(!id)return;const u=USERS.find(x=>x.id===id);updateDoc(doc(db,"users",id),{active:u.active===false}).catch(()=>{})};
+onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];
+ if(!u){window.UID=null;window.ADMIN=false;q("#app").classList.add("hide");q("#login").classList.remove("hide");return}
+ let p=null;try{const r=await getDoc(doc(db,"users",u.uid));p=r.exists()?r.data():null;if(!p&&u.email===ADM){p={name:"Admin",username:"admin",role:"admin",active:true};await setDoc(doc(db,"users",u.uid),p)}}catch(x){}
+ if(!p||p.active===false){q("#lm").textContent=p?"This account is disabled.":"No profile for this account. Ask the admin.";await signOut(auth);return}
+ window.UID=u.uid;window.NAME=p.name;window.ADMIN=p.role==="admin";
+ q("#login").classList.add("hide");q("#app").classList.remove("hide");q("#who").textContent=NAME+(ADMIN?" (admin)":"");
+ window.TABS=ALLTABS.filter(t=>ADMIN||t[0]!=="data");buildTabs();show("status");fillRep();ping("opened");
+ subs.push(onSnapshot(doc(db,"config","machines"),s=>{const d=s.data();if(!d)return;window.lastCfg=JSON.stringify({custom:d.custom||[],gone:d.gone||[]});try{localStorage.setItem("dtmach",JSON.stringify(d.custom||[]));localStorage.setItem("dtgone",JSON.stringify(d.gone||[]))}catch(x){}buildM();fillM();remUI();render()},()=>{}));
+ subs.push(onSnapshot(collection(db,"events"),{includeMetadataChanges:true},sn=>{
+  sn.docs.forEach(d=>{const x=d.data(),n=Number(x.upd)||0,l=evAll.find(e=>String(e.id)===d.id);if(!x.m||!x.start)return;
+   if(!l||(Number(l.upd)||0)<n){const o={...x,id:d.id,upd:n,sy:n};if(l)evAll[evAll.indexOf(l)]=o;else evAll.push(o)}});
+  try{localStorage.setItem("dtlog",JSON.stringify(evAll))}catch(x){}refilter();
+  const w=sn.metadata.fromCache||sn.metadata.hasPendingWrites;stat(!navigator.onLine?"Offline - will upload":w?"Saving...":"Live",w?"c-w":"c-run");render();window.sync()},x=>{stat("Disconnected","c-off");q("#syncmsg").textContent=x.code||""}));
+ subs.push(onSnapshot(collection(db,"users"),sn=>{window.USERS=sn.docs.map(d=>({id:d.id,...d.data()}));fillRep();usersT()},()=>{}));
+ if(ADMIN)subs.push(onSnapshot(collection(db,"activity"),sn=>{window.ACT={};sn.docs.forEach(d=>{ACT[d.id]=d.data()});usersT()},()=>{}));
+});
+window.addEventListener("online",()=>window.sync&&window.sync());
+</script>
+<script>
+var MACH=[];
+function add(p,n){for(var i=1;i<=n;i++)MACH.push(p+" "+i)}
+add("Mixer Machine",5);add("Extrusion Machine",7);add("Polypipe Machine",2);add("IM",7);add("Punching Machine",2);
+["Palletizer Machine","Gumboot Machine","Ducting Machine","Trunking Machine","Hose Pipe Machine","Line One","Line Two","Line 6","Green Crusher","Yellow Crusher","Crusher","Polypipe Crusher","Shredder","Pulverizer","Vibrator Machine"].forEach(function(m){MACH.push(m)});
+function customM(){try{return JSON.parse(localStorage.getItem("dtmach")||"[]")}catch(e){return[]}}
+var BASE=MACH.slice();
+function gone(){try{return JSON.parse(localStorage.getItem("dtgone")||"[]")}catch(e){return[]}}
+function setGone(a){try{localStorage.setItem("dtgone",JSON.stringify(a))}catch(e){}}
+function buildM(){var g=gone();MACH=BASE.slice();customM().forEach(function(m){if(MACH.indexOf(m)<0)MACH.push(m)});MACH=MACH.filter(function(m){return g.indexOf(m)<0});if(ADMIN&&window.cfgPush)cfgPush()}
+buildM();
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+var $=function(s){return document.querySelector(s)};
+var evAll=[],ev=[];try{evAll=JSON.parse(localStorage.getItem("dtlog")||"[]")}catch(e){}
+function refilter(){ev=evAll.filter(function(e){return!e.del})}
+evAll.forEach(function(e){if(!e.upd)e.upd=new Date(e.start).getTime()||1});refilter();
+evAll.forEach(function(e){var g=/^(Mixer|Extrusion|Polypipe|Punching) (\d)$/.exec(e.m);if(g)e.m=g[1]+" Machine "+g[2];else if(e.m==="Palletizer")e.m="Palletizer Machine"});
+function save(){refilter();try{localStorage.setItem("dtlog",JSON.stringify(evAll))}catch(e){}schedSync()}
+function p2(n){return n<10?"0"+n:""+n}
+function ymd(d){return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())}
+function dtl(d){return ymd(d)+"T"+p2(d.getHours())+":"+p2(d.getMinutes())}
+function saveFile(name,blob){var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function r2(x){return Math.round(x*100)/100}
+function T(s){return new Date(s).getTime()}
+function fmtT(s){var d=new Date(s);return ymd(d)+" "+p2(d.getHours())+":"+p2(d.getMinutes())}
+function cat(e){return e.cat==="Breakdown"?"bd":e.cat.indexOf("Changeover")===0?"co":"ot"}
+function openEv(m){for(var i=0;i<ev.length;i++)if(ev[i].m===m&&!ev[i].end)return ev[i];return null}
+
+/* ---- calculations ---- */
+function stats(m,day){
+ var now=Date.now(),a=T(day+"T00:00"),b=Math.min(a+864e5,now),o={avail:0,run:0,down:0,bd:0,co:0,ot:0,jc:0,jct:0};
+ if(b<=a)return o;o.avail=(b-a)/36e5;var iv=[];
+ ev.forEach(function(e){if(e.m!==m)return;
+  var s=T(e.start),en=e.end?T(e.end):now,x=Math.max(s,a),y=Math.min(en,b);
+  if(y>x){iv.push([x,y]);o[cat(e)]+=(y-x)/36e5}
+  if(ymd(new Date(s))===day&&e.jcn){o.jct++;if(e.jcp==="Finished")o.jc++}});
+ iv.sort(function(p,q){return p[0]-q[0]});var tot=0,cs=null,ce=null;
+ iv.forEach(function(v){if(cs===null){cs=v[0];ce=v[1]}else if(v[0]<=ce){ce=Math.max(ce,v[1])}else{tot+=ce-cs;cs=v[0];ce=v[1]}});
+ if(cs!==null)tot+=ce-cs;o.down=tot/36e5;o.run=Math.max(0,o.avail-o.down);return o}
+function days(f,t){var r=[],d=new Date(f+"T00:00"),e=new Date(t+"T00:00");while(d<=e&&r.length<400){r.push(ymd(d));d.setDate(d.getDate()+1)}return r}
+function build(f,t){
+ var daily=[],sum={};MACH.forEach(function(m){sum[m]={avail:0,run:0,down:0,bd:0,co:0,ot:0,jc:0,jct:0}});
+ days(f,t).forEach(function(d){MACH.forEach(function(m){var s=stats(m,d);if(s.avail<=0)return;daily.push([d,m,s]);
+  for(var k in s)sum[m][k]+=s[k]})});
+ return{daily:daily,sum:sum}}
+
+/* ---- UI ---- */
+var TABS=[["status","Machine status"],["log","Log downtime"],["daily","Daily hours"],["rep","Excel report"],["data","Admin"]];
+function buildTabs(){var c=(document.querySelector("#tabs .on")||{dataset:{}}).dataset.t;$("#tabs").innerHTML=TABS.map(function(t){return'<button data-t="'+t[0]+'"'+(t[0]===c?' class="on"':"")+">"+t[1]+"</button>"}).join("")}buildTabs();
+function show(t){TABS.forEach(function(x){$("#t-"+x[0]).classList.toggle("hide",x[0]!==t)});
+ document.querySelectorAll("#tabs button").forEach(function(b){b.classList.toggle("on",b.dataset.t===t)});render()}
+$("#tabs").onclick=function(e){if(e.target.dataset.t)show(e.target.dataset.t)};
+function fillM(){var v=$("#fm").value;$("#fm").innerHTML=MACH.map(function(m){return"<option>"+m+"</option>"}).join("");if(v)$("#fm").value=v}fillM();
+
+function board(){
+ var off=0,h="";
+ MACH.forEach(function(m){var o=openEv(m);if(o)off++;
+  var td=stats(m,ymd(new Date()));
+  h+='<div class="m '+(o?"off":"run")+'"><b>'+m+'</b><span class="chip '+(o?"c-off":"c-run")+'">'+(o?"OFF":"RUNNING")+"</span>"+
+  "<small>"+(o?esc(o.cat)+": "+esc(o.reason)+"<br>since "+fmtT(o.start):"Today: "+r2(td.run)+" h run / "+r2(td.down)+" h down")+"</small>"+
+  (o?'<button class="btn" data-restore="'+o.id+'">Back to running</button>':'<button class="btn" data-stop="'+m+'">Log stoppage</button>')+"</div>"});
+ $("#board").innerHTML=h;$("#sumline").textContent=(MACH.length-off)+" running, "+off+" OFF of "+MACH.length+" machines"}
+$("#board").onclick=function(e){var d=e.target.dataset;
+ if(d.restore){var x=ev.filter(function(z){return z.id==d.restore})[0];if(x){x.end=dtl(new Date());x.upd=Date.now();save()}render()}
+ if(d.stop){show("log");$("#fm").value=d.stop;$("#fs").value=dtl(new Date())}};
+
+function logt(){
+ var h="<tr><th>Machine</th><th>Type</th><th>Stopped</th><th>Running again</th><th class='n'>Hrs down</th><th>Reason</th><th>Reported by</th><th>Job card</th><th>Plan</th><th></th></tr>";
+ ev.slice().sort(function(a,b){return T(b.start)-T(a.start)}).forEach(function(e){
+  var hrs=((e.end?T(e.end):Date.now())-T(e.start))/36e5;
+  h+="<tr><td>"+esc(e.m)+"</td><td>"+esc(e.cat)+"</td><td>"+fmtT(e.start)+"</td><td>"+(e.end?fmtT(e.end):'<span class="chip c-off">still OFF</span>')+"</td><td class='n'>"+r2(hrs)+"</td><td style='white-space:normal;min-width:180px'>"+esc(e.reason)+"</td><td>"+esc(e.rep||"")+"</td><td>"+esc(e.jcn||"")+"</td><td>"+
+  (e.jcp==="Finished"?'<span class="chip c-run">Finished</span>':e.jcp==="In progress"?'<span class="chip c-w">In progress</span>':"")+'</td><td>'+(ADMIN?'<button class="btn" data-del="'+e.id+'">Delete</button>':'')+'</td></tr>'});
+ $("#logt").innerHTML=ev.length?h:"<tr><td>No entries yet.</td></tr>"}
+$("#logt").onclick=function(e){if(e.target.dataset.del&&confirm("Delete this entry?")){evAll.forEach(function(z){if(z.id==e.target.dataset.del){z.del=1;z.upd=Date.now()}});save();render()}};
+$("#f").onsubmit=function(e){e.preventDefault();
+ var s=$("#fs").value,en=$("#fe").value,m=$("#fm").value;
+ if(en&&T(en)<=T(s)){$("#fmsg").textContent="Running-again time must be after the stop time.";return}
+ if(!en&&openEv(m)){$("#fmsg").textContent=m+" already has an open stoppage. Restore it first.";return}
+ evAll.push({upd:Date.now(),by:UID,byName:NAME,id:Date.now()+""+Math.floor(Math.random()*1000),m:m,cat:$("#fc").value,start:s,end:en,reason:$("#fr").value.trim(),jcn:$("#fj").value.trim(),jcp:$("#fp").value,rep:$("#frp").value});
+ var lr=$("#frp").value;save();$("#f").reset();$("#frp").value=lr;$("#fs").value=dtl(new Date());$("#fmsg").textContent="Saved.";render()};
+
+function dailyT(){
+ var d=$("#dd").value||ymd(new Date()),h="<tr><th>Machine</th><th>Status</th><th class='n'>Hrs machine down</th><th class='n'>Hrs machine running</th><th class='n'>Breakdown hrs</th><th class='n'>Changeover hrs</th><th>Job cards finished</th></tr>";
+ MACH.forEach(function(m){var s=stats(m,d),o=openEv(m);
+  h+="<tr><td>"+m+"</td><td><span class='chip "+(o?"c-off":"c-run")+"'>"+(o?"OFF":"RUNNING")+"</span></td><td class='n'>"+r2(s.down)+"</td><td class='n'>"+r2(s.run)+"</td><td class='n'>"+r2(s.bd)+"</td><td class='n'>"+r2(s.co)+"</td><td>"+(s.jct?s.jc+" of "+s.jct:"-")+"</td></tr>"});
+ $("#dt").innerHTML=h}
+$("#dd").onchange=dailyT;
+
+function sumRows(f,t){
+ var b=build(f,t),rows=[["Machine","Period hrs","Hrs running","Hrs OFF (total)","Breakdown hrs","Job card changeover hrs","Other stoppage hrs","Availability %","Job cards finished","Job cards logged"]];
+ MACH.forEach(function(m){var s=b.sum[m];rows.push([m,r2(s.avail),r2(s.run),r2(s.down),r2(s.bd),r2(s.co),r2(s.ot),s.avail?r2(100*s.run/s.avail):0,s.jc,s.jct])});
+ var tot=["TOTAL"];for(var c=1;c<10;c++){var x=0;for(var r=1;r<rows.length;r++)x+=rows[r][c];tot.push(r2(x))}
+ tot[7]=tot[1]?r2(100*tot[2]/tot[1]):0;rows.push(tot);return{rows:rows,b:b}}
+function repPrev(){var f=$("#rf").value,t=$("#rt").value;if(!f||!t||f>t){$("#rp").innerHTML="";return}
+ var s=sumRows(f,t).rows;$("#rp").innerHTML=s.map(function(r,i){return"<tr>"+r.map(function(c,j){return i?"<td"+(j?" class='n'":"")+">"+c+"</td>":"<th"+(j?" class='n'":"")+">"+c+"</th>"}).join("")+"</tr>"}).join("")}
+document.querySelectorAll("[data-q]").forEach(function(b){b.onclick=function(){var n=new Date(),f=new Date(),t=new Date(),q=b.dataset.q;
+ if(q==="7")f.setDate(n.getDate()-6);else if(q==="m")f=new Date(n.getFullYear(),n.getMonth(),1);else if(q==="pm"){f=new Date(n.getFullYear(),n.getMonth()-1,1);t=new Date(n.getFullYear(),n.getMonth(),0)}
+ $("#rf").value=ymd(f);$("#rt").value=ymd(t);repPrev()}});
+$("#rf").onchange=$("#rt").onchange=repPrev;
+
+$("#gen").onclick=async function(){
+ var f=$("#rf").value,t=$("#rt").value,m=$("#rmsg");
+ if(!f||!t||f>t){m.textContent="Pick a valid From and To date.";return}
+ if(typeof XLSX==="undefined"){var rr=sumRows(f,t).rows,csv=rr.map(function(x){return x.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"'}).join(",")}).join("\r\n");saveFile("Downtime_Summary_"+f+"_to_"+t+".csv",new Blob([csv],{type:"text/csv"}));m.textContent="No internet, so the summary was saved as CSV (opens in Excel). Connect to the internet once for the full Excel workbook.";return}
+ var r=sumRows(f,t),wb=XLSX.utils.book_new();
+ var info=[["Downtime summary report"],["Period",f+" to "+t],["Basis","24 hrs per day (current day counted up to now)"],[]].concat(r.rows);
+ var ws=XLSX.utils.aoa_to_sheet(info);ws["!cols"]=[{wch:16}].concat(new Array(9).fill({wch:18}));XLSX.utils.book_append_sheet(wb,ws,"Summary");
+ var d=[["Date","Machine","Hrs machine down","Hrs machine running","Breakdown hrs","Job card changeover hrs","Other stoppage hrs","Job cards finished","Job cards logged"]];
+ r.b.daily.forEach(function(x){var s=x[2];d.push([x[0],x[1],r2(s.down),r2(s.run),r2(s.bd),r2(s.co),r2(s.ot),s.jc,s.jct])});
+ var w2=XLSX.utils.aoa_to_sheet(d);w2["!cols"]=new Array(9).fill({wch:20});XLSX.utils.book_append_sheet(wb,w2,"Daily");
+ var l=[["Machine","Type","Stopped","Running again","Hrs down","Reason","Reported by","Job card","Job card plan"]];
+ ev.filter(function(e){var s=ymd(new Date(e.start));return s>=f&&s<=t}).forEach(function(e){l.push([e.m,e.cat,fmtT(e.start),e.end?fmtT(e.end):"still OFF",r2(((e.end?T(e.end):Date.now())-T(e.start))/36e5),e.reason,e.rep||"",e.jcn||"",e.jcp])});
+ var w3=XLSX.utils.aoa_to_sheet(l);w3["!cols"]=[{wch:14},{wch:22},{wch:18},{wch:18},{wch:10},{wch:40},{wch:24},{wch:12},{wch:14}];XLSX.utils.book_append_sheet(wb,w3,"Entries");
+ var out=XLSX.write(wb,{bookType:"xlsx",type:"array"}),blob=new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+ saveFile("Downtime_Report_"+f+"_to_"+t+".xlsx",blob);m.textContent="Report saved to your downloads."};
+
+$("#addm").onclick=function(){var n=$("#nm").value.trim().replace(/\s+/g," ");if(!n){return}
+ if(MACH.some(function(m){return m.toLowerCase()===n.toLowerCase()})){$("#nmsg").textContent=n+" already exists.";return}
+ setGone(gone().filter(function(x){return x.toLowerCase()!==n.toLowerCase()}));var c=customM();if(!BASE.some(function(b){return b.toLowerCase()===n.toLowerCase()}))c.push(n);try{localStorage.setItem("dtmach",JSON.stringify(c))}catch(e){}buildM();fillM();remUI();$("#nm").value="";$("#nmsg").textContent=n+" added.";render()};
+$("#bk").onclick=function(){saveFile("downtime_backup_"+ymd(new Date())+".json",new Blob([JSON.stringify({ev:evAll,mach:customM()})],{type:"application/json"}));$("#bmsg").textContent="Backup saved to your downloads."};
+$("#rs").onchange=function(){var f=this.files[0],m=$("#bmsg");if(!f)return;var rd=new FileReader();rd.onload=function(){try{var d=JSON.parse(rd.result),n=0,ids={};evAll.forEach(function(e){ids[e.id]=1});
+ (d.ev||[]).forEach(function(e){if(e&&e.id&&e.m&&e.start&&!ids[e.id]){e.upd=Date.now();delete e.sy;evAll.push(e);n++}});
+ var c=customM();(d.mach||[]).forEach(function(x){if(typeof x==="string"&&MACH.indexOf(x)<0){MACH.push(x);c.push(x)}});try{localStorage.setItem("dtmach",JSON.stringify(c))}catch(e){}
+ save();fillM();render();m.textContent="Restored "+n+" new entries."}catch(e){m.textContent="That file is not a valid backup."}};rd.readAsText(f)};
+var UID=null,NAME="",ADMIN=false,USERS=[],ACT={},stt=null,ALLTABS=TABS.slice();
+function stat(t,c){$("#cst").textContent=t;$("#cst").className="chip "+c}
+function schedSync(){clearTimeout(stt);stt=setTimeout(function(){window.sync&&window.sync()},500)}
+function usersT(){if(!ADMIN||!$("#ut"))return;var h="<tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last active</th><th class='n'>Entries</th><th></th></tr>";
+ (USERS||[]).forEach(function(u){var a=ACT[u.id]||{},n=evAll.filter(function(e){return e.by===u.id&&!e.del}).length;
+  h+="<tr><td>"+esc(u.name)+"</td><td>"+esc(u.username)+"</td><td>"+esc(u.role)+"</td><td>"+(u.active===false?'<span class="chip c-off">Disabled</span>':'<span class="chip c-run">Active</span>')+"</td><td>"+(a.last?fmtT(a.last):"-")+"</td><td class='n'>"+n+"</td><td>"+(u.id===UID?"":'<button class="btn" data-tog="'+u.id+'">'+(u.active===false?"Enable":"Disable")+"</button>")+"</td></tr>"});
+ $("#ut").innerHTML=h}
+function remUI(){$("#rmsel").innerHTML=MACH.map(function(m){return"<option>"+esc(m)+"</option>"}).join("");
+ $("#rmlist").innerHTML=gone().map(function(m){return'<button class="btn" data-back="'+esc(m)+'">Restore '+esc(m)+"</button>"}).join(" ")||'<span class="msg">None removed.</span>'}
+$("#rmb").onclick=function(){var n=$("#rmsel").value,m=$("#rmmsg");if(!n)return;
+ if(openEv(n)){m.textContent=n+" is still OFF. Mark it back to running first.";return}
+ if(!confirm("Remove "+n+" from the machine list? Its past entries are kept and you can restore it later."))return;
+ setGone(gone().concat([n]));buildM();fillM();remUI();render();m.textContent=n+" removed."};
+$("#rmlist").onclick=function(e){var n=e.target.dataset.back;if(!n)return;setGone(gone().filter(function(x){return x!==n}));buildM();fillM();remUI();render();$("#rmmsg").textContent=n+" restored."};
+function render(){board();logt();dailyT();repPrev();usersT()}
+$("#fs").value=dtl(new Date());$("#dd").value=ymd(new Date());
+(function(){var n=new Date();$("#rf").value=ymd(new Date(n.getFullYear(),n.getMonth(),1));$("#rt").value=ymd(n)})();
+show("status");remUI();setInterval(function(){if(!$("#t-status").classList.contains("hide"))board()},60000);
+</script></body></html>
